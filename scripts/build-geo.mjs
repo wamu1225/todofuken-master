@@ -1,0 +1,234 @@
+/**
+ * src/data/geo.ts を生成する。
+ *
+ * 元データ：Natural Earth 1:10m Admin 1 – States, Provinces（パブリックドメイン）
+ *   https://www.naturalearthdata.com/downloads/10m-cultural-vectors/
+ *   配布ミラー：https://github.com/nvkelso/natural-earth-vector
+ *   利用条件：パブリックドメイン。帰属表示は不要（任意）。正確性は無保証。
+ *
+ * 手順
+ *   1. admin_1 の GeoJSON から iso_a2 が JP のフィーチャ（47件）を取り出す
+ *   2. ランベルト正角円錐図法（標準緯線 33°N / 43°N・中央経線 137°E）で投影する
+ *   3. 本州から九州までの本土図と、南西諸島の枠（インセット）に振り分ける
+ *   4. 画面解像度より細かい頂点を間引き、SVG のパス文字列にして書き出す
+ *
+ * 実行：node scripts/build-geo.mjs
+ * 元 GeoJSON（約 40MB）はリポジトリに置かず、無ければその場で取得する。
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(HERE, '..');
+const CACHE = path.join(ROOT, 'node_modules', '.cache', 'ne10_admin1.geojson');
+const SRC_URL =
+  'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson';
+const OUT = path.join(ROOT, 'src', 'data', 'geo.ts');
+
+// ---- 1. 元データ ---------------------------------------------------------
+
+async function loadSource() {
+  if (!fs.existsSync(CACHE)) {
+    fs.mkdirSync(path.dirname(CACHE), { recursive: true });
+    process.stdout.write(`元データを取得します: ${SRC_URL}\n`);
+    const res = await fetch(SRC_URL);
+    if (!res.ok) throw new Error(`取得に失敗しました: HTTP ${res.status}`);
+    fs.writeFileSync(CACHE, Buffer.from(await res.arrayBuffer()));
+  }
+  return JSON.parse(fs.readFileSync(CACHE, 'utf8'));
+}
+
+// ---- 2. 投影 -------------------------------------------------------------
+
+const RAD = Math.PI / 180;
+const PHI1 = 33 * RAD; // 標準緯線（南）
+const PHI2 = 43 * RAD; // 標準緯線（北）
+const LON0 = 137 * RAD; // 中央経線
+const PHI0 = 36 * RAD; // 原点緯度
+
+const t = (phi) => Math.tan(Math.PI / 4 + phi / 2);
+const N = Math.log(Math.cos(PHI1) / Math.cos(PHI2)) / Math.log(t(PHI2) / t(PHI1));
+const F = (Math.cos(PHI1) * Math.pow(t(PHI1), N)) / N;
+const RHO0 = F / Math.pow(t(PHI0), N);
+
+/** 経緯度 → 投影座標。y は南が大きくなる（画面座標に合わせる） */
+function project(lon, lat) {
+  const rho = F / Math.pow(t(lat * RAD), N);
+  const theta = N * (lon * RAD - LON0);
+  return [rho * Math.sin(theta), -(RHO0 - rho * Math.cos(theta))];
+}
+
+// ---- 3. リングの仕分けと間引き -------------------------------------------
+
+/** 多角形の符号なし面積（投影座標） */
+function ringArea(ring) {
+  let a = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    a += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
+  }
+  return Math.abs(a / 2);
+}
+
+/** Douglas–Peucker。eps は出力座標系の単位＝おおむね画面 px */
+function simplify(ring, eps) {
+  if (ring.length < 5) return ring;
+  const keep = new Uint8Array(ring.length);
+  keep[0] = keep[ring.length - 1] = 1;
+  const stack = [[0, ring.length - 1]];
+  while (stack.length) {
+    const [s, e] = stack.pop();
+    const [x1, y1] = ring[s];
+    const [x2, y2] = ring[e];
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 1e-12;
+    let far = -1;
+    let max = eps;
+    for (let i = s + 1; i < e; i++) {
+      const d = Math.abs(dy * ring[i][0] - dx * ring[i][1] + x2 * y1 - y2 * x1) / len;
+      if (d > max) {
+        max = d;
+        far = i;
+      }
+    }
+    if (far > 0) {
+      keep[far] = 1;
+      stack.push([s, far], [far, e]);
+    }
+  }
+  const out = ring.filter((_, i) => keep[i]);
+  return out.length >= 4 ? out : ring;
+}
+
+const toPath = (rings) =>
+  rings
+    .map(
+      (r) =>
+        'M' +
+        r
+          .map(([x, y]) => `${Math.round(x * 10) / 10},${Math.round(y * 10) / 10}`)
+          .join('L') +
+        'Z',
+    )
+    .join('');
+
+// ---- 4. 本体 -------------------------------------------------------------
+
+/** 本土図に載せる範囲。南西諸島（奄美・沖縄）と小笠原はここから外れる */
+const MAINLAND = (lon, lat) => lat >= 30 && lon <= 147;
+/** 南西諸島の枠に載せる範囲。小笠原・南鳥島（東経132度以東）は含めない */
+const NANSEI = (lon, lat) => lat < 30 && lon < 132;
+
+const main = async () => {
+  const gj = await loadSource();
+  const feats = gj.features.filter((f) => f.properties.iso_a2 === 'JP');
+  if (feats.length !== 47) throw new Error(`都道府県が47件ではありません: ${feats.length}件`);
+
+  const groups = { mainland: [], nansei: [], dropped: [] };
+
+  const prefs = feats
+    .map((f) => {
+      const code = Number(f.properties.iso_3166_2.slice(3)); // JP-01 → 1
+      const geom = f.geometry;
+      const rings =
+        geom.type === 'Polygon' ? [geom.coordinates[0]] : geom.coordinates.map((p) => p[0]);
+
+      const sorted = { mainland: [], nansei: [] };
+      for (const ring of rings) {
+        const lon = ring.reduce((s, p) => s + p[0], 0) / ring.length;
+        const lat = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+        const projected = ring.map(([x, y]) => project(x, y));
+        if (MAINLAND(lon, lat)) sorted.mainland.push(projected);
+        else if (NANSEI(lon, lat)) sorted.nansei.push(projected);
+        else groups.dropped.push({ code, lon, lat });
+      }
+      return { code, name: f.properties.name_ja, ...sorted };
+    })
+    .sort((a, b) => a.code - b.code);
+
+  // 2つの枠それぞれで、投影座標を 0..1 に正規化するための範囲を測る
+  const bounds = (key) => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of prefs)
+      for (const r of p[key])
+        for (const [x, y] of r) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+    return { minX, minY, maxX, maxY };
+  };
+
+  // 本土図：幅 1000 に合わせる。南西諸島：本土と同じ縮尺では小さすぎるので枠内で拡大する
+  const layout = {
+    mainland: { ...bounds('mainland'), width: 1000, ox: 0, oy: 0 },
+    nansei: { ...bounds('nansei'), width: 300, ox: 0, oy: 0 },
+  };
+  for (const key of ['mainland', 'nansei']) {
+    const b = layout[key];
+    b.scale = b.width / (b.maxX - b.minX);
+    b.height = Math.round((b.maxY - b.minY) * b.scale);
+  }
+
+  const emit = (rings, key, eps, minArea) => {
+    const b = layout[key];
+    const out = [];
+    for (const ring of rings) {
+      const scaled = ring.map(([x, y]) => [(x - b.minX) * b.scale + b.ox, (y - b.minY) * b.scale + b.oy]);
+      if (ringArea(scaled) < minArea) {
+        groups.dropped.push({ tiny: true, key, area: ringArea(scaled) });
+        continue;
+      }
+      out.push(simplify(scaled, eps));
+      groups[key].push(scaled.length);
+    }
+    return out;
+  };
+
+  const records = prefs.map((p) => ({
+    code: p.code,
+    name: p.name,
+    mainland: toPath(emit(p.mainland, 'mainland', 0.35, 1.2)),
+    nansei: toPath(emit(p.nansei, 'nansei', 0.35, 1.2)),
+  }));
+
+  const totalPts = (s) => (s.match(/,/g) || []).length;
+  const kept = records.reduce((n, r) => n + totalPts(r.mainland) + totalPts(r.nansei), 0);
+
+  const body = `// このファイルは scripts/build-geo.mjs が生成します。手で編集しないこと。
+// 元データ：Natural Earth 1:10m Admin 1 – States, Provinces（パブリックドメイン）
+// 投影：ランベルト正角円錐図法（標準緯線 33°N / 43°N・中央経線 137°E）。方位は北が上。
+// 生成日：${new Date().toISOString().slice(0, 10)}
+
+/** 地図の枠。mainland＝本州から九州までの本土図、nansei＝南西諸島の枠 */
+export const MAP_FRAME = {
+  mainland: { width: ${layout.mainland.width}, height: ${layout.mainland.height} },
+  nansei: { width: ${layout.nansei.width}, height: ${layout.nansei.height} },
+} as const;
+
+export type PrefShape = {
+  /** 全国地方公共団体コードの上2桁（北海道=1 … 沖縄=47） */
+  code: number;
+  name: string;
+  /** 本土図の SVG パス。南西諸島だけの県は空文字 */
+  mainland: string;
+  /** 南西諸島の枠の SVG パス。該当がなければ空文字 */
+  nansei: string;
+};
+
+export const PREF_SHAPES: PrefShape[] = ${JSON.stringify(records, null, 0).replace(/\},\{/g, '},\n  {').replace(/^\[/, '[\n  ').replace(/\]$/, ',\n]')};
+`;
+
+  fs.writeFileSync(OUT, body, 'utf8');
+
+  const nansei = records.filter((r) => r.nansei).map((r) => `${r.code}:${r.name}`);
+  console.log(`都道府県 ${records.length}件 / 頂点 ${kept}点 / ${(body.length / 1024).toFixed(0)}KB`);
+  console.log(`本土図 ${layout.mainland.width}×${layout.mainland.height} / 南西諸島 ${layout.nansei.width}×${layout.nansei.height}`);
+  console.log(`南西諸島の枠に載る県: ${nansei.join(', ')}`);
+  console.log(`枠外に置いたリング: ${groups.dropped.filter((d) => !d.tiny).length}件（小笠原諸島・南鳥島など）`);
+  console.log(`画面上で点になるため落としたリング: ${groups.dropped.filter((d) => d.tiny).length}件`);
+};
+
+main();
