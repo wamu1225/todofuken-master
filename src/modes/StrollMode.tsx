@@ -1,18 +1,29 @@
 import { useState } from 'react'
 import PrefMap from '../components/PrefMap'
-import { byCode } from '../data/prefectures'
+import RegionFilter from '../components/RegionFilter'
+import { byCode, type Region } from '../data/prefectures'
 
 /** さんぽモード：自由にタップして名前・よみ・県庁所在地・地方・面積を見る */
 export default function StrollMode() {
   const [selected, setSelected] = useState<number | null>(null)
+  const [region, setRegion] = useState<Region | null>(null)
   const pref = selected === null ? null : byCode.get(selected)
+
+  const handleSelect = (code: number) => {
+    setSelected(code)
+  }
 
   return (
     <div className="stroll-layout">
       <div className="map-wrap">
+        <RegionFilter active={region} onChange={setRegion} />
         <PrefMap
-          onSelect={setSelected}
-          classify={(code) => (code === selected ? 'is-selected' : '')}
+          onSelect={handleSelect}
+          classify={(code) => {
+            if (code === selected) return 'is-selected'
+            if (region) return byCode.get(code)!.region === region ? 'is-region-active' : 'is-region-dim'
+            return ''
+          }}
         />
       </div>
 
@@ -40,7 +51,9 @@ export default function StrollMode() {
             </dl>
           </>
         ) : (
-          <p className="readout-empty">地図の県をタップすると、ここに名前が出ます。</p>
+          <p className="readout-empty">
+            地図の県をタップすると、ここに名前が出ます。上のボタンで地方ごとに絞り込むこともできます。
+          </p>
         )}
       </aside>
     </div>
