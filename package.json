@@ -9,8 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "geo": "node scripts/build-geo.mjs",
+    "ogp": "npx tsx scripts/generate-ogp.ts",
     "validate": "node scripts/validate-data.js",
-    "predeploy": "npm run validate && npm run build && npx tsx scripts/prerender.ts",
+    "predeploy": "npm run validate && npm run ogp && npm run build && npx tsx scripts/prerender.ts",
     "deploy": "gh-pages -d dist --dotfiles"
   },
   "dependencies": {

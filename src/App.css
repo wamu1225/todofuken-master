@@ -21,6 +21,58 @@
   color: var(--ink-soft);
 }
 
+.masthead-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  display: block;
+}
+
+.footer-nav {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.footer-nav a {
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: 0.78rem;
+}
+
+.footer-nav a:hover {
+  text-decoration: underline;
+}
+
+.footer-nav--top {
+  margin-top: 10px;
+}
+
+.static-page {
+  padding: 14px 20px 40px;
+  max-width: 720px;
+  line-height: 1.85;
+}
+
+.static-page h1 {
+  font-size: 1.4rem;
+  margin-bottom: 14px;
+}
+
+.static-page h2 {
+  font-size: 1.05rem;
+  margin: 22px 0 8px;
+  border-left: 4px solid var(--land-active);
+  padding-left: 10px;
+}
+
+.static-page p {
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+
 .mode-tabs {
   display: flex;
   gap: 6px;
