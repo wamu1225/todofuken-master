@@ -1,8 +1,10 @@
 import { MAP_FRAME, PREF_SHAPES } from '../data/geo'
+import { labelPoint } from '../lib/centroid'
 
 /**
  * 47都道府県の全体地図（本土図＋南西諸島の枠）。さんぽ・かくれんぼの
- * 2モードが同じこの地図を使う（見た目・配置は共通、色分けと問いだけが変わる）。
+ * 2モードが同じこの地図を使う（見た目・配置は共通、色分けと問い・名前の
+ * 有無だけが変わる＝「地図が消えない」という中心体験）。
  */
 const INSET = { x: 24, y: 44, pad: 14 }
 
@@ -12,6 +14,8 @@ type Props = {
   onSelect: (code: number) => void
   classify?: PrefClassifier
   ariaLabel?: string
+  /** 県名を地図上に常設表示する（さんぽ＝true、かくれんぼ＝false） */
+  showLabels?: boolean
 }
 
 const insetBox = {
@@ -21,7 +25,15 @@ const insetBox = {
   h: MAP_FRAME.nansei.height + INSET.pad * 2,
 }
 
-export default function PrefMap({ onSelect, classify, ariaLabel }: Props) {
+// ラベル位置は形状（パス文字列）から一度だけ計算する（PREF_SHAPES は静的データ）
+const LABEL_POINTS = new Map(
+  PREF_SHAPES.map((s) => [
+    s.code,
+    { mainland: s.mainland ? labelPoint(s.mainland) : null, nansei: s.nansei ? labelPoint(s.nansei) : null },
+  ]),
+)
+
+export default function PrefMap({ onSelect, classify, ariaLabel, showLabels }: Props) {
   const cls = (code: number) => `pref${classify ? ' ' + classify(code) : ''}`
 
   return (
@@ -70,6 +82,30 @@ export default function PrefMap({ onSelect, classify, ariaLabel }: Props) {
           ) : null,
         )}
       </g>
+
+      {showLabels &&
+        PREF_SHAPES.map((s) => {
+          const pt = LABEL_POINTS.get(s.code)?.mainland
+          if (!pt) return null
+          return (
+            <text key={`lm${s.code}`} className="pref-label" x={pt[0]} y={pt[1]} aria-hidden="true">
+              {s.name}
+            </text>
+          )
+        })}
+      {showLabels && (
+        <g transform={`translate(${insetBox.x + INSET.pad} ${insetBox.y + INSET.pad + 14})`}>
+          {PREF_SHAPES.map((s) => {
+            const pt = LABEL_POINTS.get(s.code)?.nansei
+            if (!pt) return null
+            return (
+              <text key={`ln${s.code}`} className="pref-label pref-label--inset" x={pt[0]} y={pt[1]} aria-hidden="true">
+                {s.name}
+              </text>
+            )
+          })}
+        </g>
+      )}
     </svg>
   )
 }

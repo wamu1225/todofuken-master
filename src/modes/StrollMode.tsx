@@ -18,6 +18,7 @@ export default function StrollMode() {
       <div className="map-wrap">
         <RegionFilter active={region} onChange={setRegion} />
         <PrefMap
+          showLabels
           onSelect={handleSelect}
           classify={(code) => {
             if (code === selected) return 'is-selected'

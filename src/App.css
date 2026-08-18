@@ -223,6 +223,23 @@
   fill: var(--ink-soft);
 }
 
+.pref-label {
+  font-size: 10px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: var(--land);
+  stroke-width: 2.4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+  font-family: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', 'Yu Gothic', system-ui, sans-serif;
+}
+
+.pref-label--inset {
+  font-size: 9px;
+}
+
 .readout {
   border-top: 2px solid var(--rule);
   padding: 12px 20px 24px;
