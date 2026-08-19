@@ -39,7 +39,9 @@ export default function ShapeMode() {
 
   if (target === null) return null
   const shape = shapeByCode.get(target)
-  const combined = [shape?.mainland ?? '', shape?.nansei ?? ''].filter(Boolean).join(' ')
+  // 県ごとに単独で正規化した shape を使う。mainland と nansei は座標系が別なので
+  // 連結してはいけない（両方を持つ鹿児島県だけが潰れて点になっていた・2026-08-19）。
+  const combined = shape?.shape ?? ''
   const vb = squareViewBox(pathBounds(combined))
 
   return (

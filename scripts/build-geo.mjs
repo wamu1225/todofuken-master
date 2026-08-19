@@ -231,11 +231,45 @@ const main = async () => {
     return out;
   };
 
+  /**
+   * 「かたち」モード用に、県を単独で 0..100 の枠に正規化したパスを作る。
+   *
+   * なぜ別に持つか：本土図（mainland）と南西諸島の枠（nansei）は**別の座標系**で、
+   * しかも nansei は枠内で拡大している。この2つを文字列連結すると、両方を持つ
+   * 鹿児島県だけが「x が 0〜1000 に広がった bbox の中で本土が潰れて点になる」。
+   * 実際に本番でそうなっていた（2026-08-19 ユーザー指摘）。
+   * 県の形を単体で見せる用途では、県ごとに同一座標系で投影し直すのが正しい。
+   * 全県を同じ扱いにする（鹿児島だけ特別扱いにしない）。
+   */
+  const shapeOf = (p) => {
+    const rings = [...p.mainland, ...p.nansei]; // 投影済み・振り分け前の同一座標系
+    if (!rings.length) return '';
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const r of rings)
+      for (const [x, y] of r) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    const scale = 100 / Math.max(maxX - minX, maxY - minY);
+    const ox = (100 - (maxX - minX) * scale) / 2;
+    const oy = (100 - (maxY - minY) * scale) / 2;
+    const out = [];
+    for (const r of rings) {
+      const scaled = r.map(([x, y]) => [(x - minX) * scale + ox, (y - minY) * scale + oy]);
+      if (ringArea(scaled) < 0.02) continue; // 100×100 の枠で見えない粒だけ落とす
+      out.push(simplify(scaled, 0.08));
+    }
+    return toPath(out);
+  };
+
   const records = prefs.map((p) => ({
     code: p.code,
     name: p.name,
     mainland: toPath(emit(p.mainland, 'mainland', 0.35, 1.2)),
     nansei: toPath(emit(p.nansei, 'nansei', 0.35, 1.2)),
+    shape: shapeOf(p),
   }));
 
   const totalPts = (s) => (s.match(/,/g) || []).length;
@@ -260,6 +294,8 @@ export type PrefShape = {
   mainland: string;
   /** 南西諸島の枠の SVG パス。該当がなければ空文字 */
   nansei: string;
+  /** 「かたち」モード用。県を単独で 0..100 の枠に正規化したパス（本土図とは別の座標系） */
+  shape: string;
 };
 
 export const PREF_SHAPES: PrefShape[] = ${JSON.stringify(records, null, 0).replace(/\},\{/g, '},\n  {').replace(/^\[/, '[\n  ').replace(/\]$/, ',\n]')};
