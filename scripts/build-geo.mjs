@@ -115,15 +115,59 @@ const toPath = (rings) =>
 
 // ---- 4. 本体 -------------------------------------------------------------
 
-/** 本土図に載せる範囲。南西諸島（奄美・沖縄）と小笠原はここから外れる */
-const MAINLAND = (lon, lat) => lat >= 30 && lon <= 147;
+/** 本土図に載せる範囲。南西諸島（奄美・沖縄）と小笠原はここから外れる。
+ *  東の上限は択捉島の東端（東経 148.86 度）を含める値にしている。
+ *  旧値は 147 で、北方領土を足しても択捉島の東半分が切り落とされていた。 */
+const MAINLAND = (lon, lat) => lat >= 30 && lon <= 149.2;
 /** 南西諸島の枠に載せる範囲。小笠原・南鳥島（東経132度以東）は含めない */
 const NANSEI = (lon, lat) => lat < 30 && lon < 132;
+
+/**
+ * 北方領土（択捉島・国後島・色丹島・歯舞群島）のリングを取り出す。
+ *
+ * なぜ必要か：Natural Earth は北方領土をロシア（サハリン州 RU-SAK）に含めているため、
+ * `iso_a2 === 'JP'` で絞ると4島がまるごと地図から消える。日本の学習指導要領は
+ * 北方領土を日本固有の領土として扱い、国土地理院の地図も日本領として描いているので、
+ * 日本の小学生向けの地図としては欠かせない。**帰属の判断は日本の一次情報に合わせる**。
+ *   国土地理院 地図記号・地形図 https://www.gsi.go.jp/
+ *   内閣府 北方領土問題対策協会（4島の範囲） https://www.hoppou.go.jp/
+ *
+ * 切り出しの根拠：北方領土は択捉島までで、その北東の得撫（うるっぷ）島から先は含まない。
+ * 択捉島の北東端は 45.53°N / 148.86°E、得撫島の南西端は 45.58°N / 149.44°E なので、
+ * 「緯度 45.75 未満かつ経度 149.3 未満」で両者はきれいに分かれる（実測で確認）。
+ */
+const NORTHERN_TERRITORIES = (rings) =>
+  rings.filter((ring) => {
+    let maxLat = -Infinity, maxLon = -Infinity, minLat = Infinity;
+    for (const [lon, lat] of ring) {
+      if (lat > maxLat) maxLat = lat;
+      if (lat < minLat) minLat = lat;
+      if (lon > maxLon) maxLon = lon;
+    }
+    return maxLat < 45.75 && maxLon < 149.3 && minLat > 42.9;
+  });
 
 const main = async () => {
   const gj = await loadSource();
   const feats = gj.features.filter((f) => f.properties.iso_a2 === 'JP');
   if (feats.length !== 47) throw new Error(`都道府県が47件ではありません: ${feats.length}件`);
+
+  // 北方領土を北海道（JP-01）のリングに足す。Natural Earth 側の帰属をそのまま使わない。
+  const sakhalin = gj.features.find((f) => f.properties.iso_3166_2 === 'RU-SAK');
+  if (!sakhalin) throw new Error('サハリン州のフィーチャが見つかりません（北方領土を取り出せない）');
+  const sakGeom = sakhalin.geometry;
+  const sakRings = (sakGeom.type === 'Polygon' ? [sakGeom.coordinates] : sakGeom.coordinates).map(
+    (p) => p[0],
+  );
+  const ntRings = NORTHERN_TERRITORIES(sakRings);
+  if (ntRings.length < 4)
+    throw new Error(`北方領土のリングが少なすぎます: ${ntRings.length}件（4島ぶん以上を期待）`);
+  const hokkaido = feats.find((f) => f.properties.iso_3166_2 === 'JP-01');
+  if (!hokkaido) throw new Error('北海道のフィーチャが見つかりません');
+  if (hokkaido.geometry.type === 'Polygon')
+    hokkaido.geometry = { type: 'MultiPolygon', coordinates: [hokkaido.geometry.coordinates] };
+  for (const ring of ntRings) hokkaido.geometry.coordinates.push([ring]);
+  console.log(`北方領土として北海道に足したリング: ${ntRings.length}件`);
 
   const groups = { mainland: [], nansei: [], dropped: [] };
 
