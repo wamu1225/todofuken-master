@@ -1,7 +1,7 @@
 // このファイルは scripts/build-geo.mjs が生成します。手で編集しないこと。
 // 元データ：Natural Earth 1:10m Admin 1 – States, Provinces（パブリックドメイン）
 // 投影：ランベルト正角円錐図法（標準緯線 33°N / 43°N・中央経線 137°E）。方位は北が上。
-// 生成日：2026-08-19
+// 生成日：2026-08-21
 
 /** 地図の枠。mainland＝本州から九州までの本土図、nansei＝南西諸島の枠 */
 export const MAP_FRAME = {
