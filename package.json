@@ -34,5 +34,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.66.0",
     "vite": "^8.2.1"
-  }
+  },
+  "svgGuard": "off",
+  "svgGuardReason": "地図クイズの対話UI（PrefMap/ShapeMode＝出題ごとに描く盤面）"
 }
