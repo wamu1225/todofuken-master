@@ -21,6 +21,18 @@
   color: var(--ink-soft);
 }
 
+.progress-badge {
+  margin-top: 8px;
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--sea);
+  border: 1.5px solid var(--rule);
+  border-radius: 999px;
+  padding: 3px 12px;
+}
+
 .masthead-link {
   background: none;
   border: none;
@@ -138,6 +150,38 @@
   white-space: nowrap;
 }
 
+.quiz-best {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.quiz-best strong {
+  color: var(--ink);
+}
+
+.quiz-best.is-new-best {
+  color: var(--land-active);
+}
+
+.quiz-hint {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+  color: #c1554a;
+}
+
+.region-hint {
+  margin: 0 20px 10px;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.stroll-progress {
+  margin: 0 20px 6px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
 .map-wrap {
   padding: 0 12px;
 }
@@ -224,7 +268,7 @@
 }
 
 .pref-label {
-  font-size: 10px;
+  font-size: 13px;
   text-anchor: middle;
   dominant-baseline: central;
   fill: var(--ink);
@@ -236,8 +280,10 @@
   font-family: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', 'Yu Gothic', system-ui, sans-serif;
 }
 
+/* 沖縄（南西諸島の枠）は常に1県だけなので、地方ズームをしなくても
+   単独でも実効11px以上になる大きさにしておく（全体図のときに表示） */
 .pref-label--inset {
-  font-size: 9px;
+  font-size: 34px;
 }
 
 .readout {

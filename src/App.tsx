@@ -6,6 +6,17 @@ import HideMode from './modes/HideMode'
 import ShapeMode from './modes/ShapeMode'
 import StaticPage from './pages/StaticPage'
 import { ABOUT_CONTENT, PRIVACY_CONTENT } from './data/static-pages'
+import { getKnownCount, KNOWN_TOTAL } from './lib/progress'
+
+function useKnownCount() {
+  const [known, setKnown] = useState(() => getKnownCount())
+  useEffect(() => {
+    const onChange = () => setKnown(getKnownCount())
+    window.addEventListener('todofuken:progress', onChange)
+    return () => window.removeEventListener('todofuken:progress', onChange)
+  }, [])
+  return known
+}
 
 const BASE = '/todofuken-master'
 
@@ -31,6 +42,7 @@ function GameHome() {
 
 export default function App() {
   const [path, setPath] = useState(getCurrentPath())
+  const known = useKnownCount()
 
   useEffect(() => {
     const onPop = () => setPath(getCurrentPath())
@@ -54,6 +66,11 @@ export default function App() {
           <h1>都道府県マスター</h1>
         </button>
         <p>日本地図をさわって、47都道府県の場所と形をおぼえます。</p>
+        <p>
+          <span className="progress-badge" aria-live="polite">
+            覚えた県：{known} / {KNOWN_TOTAL}
+          </span>
+        </p>
         <nav className="footer-nav footer-nav--top">
           <a href={`${BASE}/about/`} onClick={(e) => { e.preventDefault(); navigate('/about/') }}>サイトについて</a>
           <a href={`${BASE}/privacy/`} onClick={(e) => { e.preventDefault(); navigate('/privacy/') }}>プライバシーポリシー</a>

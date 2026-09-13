@@ -2,23 +2,34 @@ import { useState } from 'react'
 import PrefMap from '../components/PrefMap'
 import RegionFilter from '../components/RegionFilter'
 import { byCode, type Region } from '../data/prefectures'
+import { recordVisit, getVisitedCount } from '../lib/progress'
 
 /** さんぽモード：自由にタップして名前・よみ・県庁所在地・地方・面積を見る */
 export default function StrollMode() {
   const [selected, setSelected] = useState<number | null>(null)
   const [region, setRegion] = useState<Region | null>(null)
+  const [visited, setVisited] = useState(() => getVisitedCount())
   const pref = selected === null ? null : byCode.get(selected)
 
   const handleSelect = (code: number) => {
     setSelected(code)
+    recordVisit(code)
+    setVisited(getVisitedCount())
   }
 
   return (
     <div className="stroll-layout">
       <div className="map-wrap">
+        <p className="stroll-progress">見た県：{visited} / 47</p>
         <RegionFilter active={region} onChange={setRegion} />
+        {!region && (
+          <p className="region-hint">
+            地方を選ぶと、その地方だけを拡大して県名を表示します。まずは気になる県をタップしてみてください。
+          </p>
+        )}
         <PrefMap
           showLabels
+          zoomRegion={region}
           onSelect={handleSelect}
           classify={(code) => {
             if (code === selected) return 'is-selected'

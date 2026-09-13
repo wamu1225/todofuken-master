@@ -31,3 +31,15 @@ export function squareViewBox(b: Bounds, pad = 0.12): string {
   const cy = (b.minY + b.maxY) / 2
   return `${cx - size / 2} ${cy - size / 2} ${size} ${size}`
 }
+
+/**
+ * bbox を縦横比を保ったまま余白つきの viewBox に変換する（地方ズーム用）。
+ * squareViewBox と違って正方形に矯正しない＝地図の形を歪めない。
+ */
+export function paddedViewBox(b: Bounds, pad = 0.2): string {
+  const w = b.maxX - b.minX
+  const h = b.maxY - b.minY
+  const px = w * pad
+  const py = h * pad
+  return `${b.minX - px} ${b.minY - py} ${w + px * 2} ${h + py * 2}`
+}

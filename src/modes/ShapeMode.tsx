@@ -3,6 +3,7 @@ import { PREF_SHAPES } from '../data/geo'
 import { PREFECTURES, byCode } from '../data/prefectures'
 import { pathBounds, squareViewBox } from '../lib/pathBounds'
 import { shuffled } from '../lib/shuffle'
+import { recordCorrect, getBestStreak, reportStreak } from '../lib/progress'
 
 const shapeByCode = new Map(PREF_SHAPES.map((s) => [s.code, s]))
 
@@ -13,6 +14,9 @@ export default function ShapeMode() {
   const [choices, setChoices] = useState<number[]>([])
   const [picked, setPicked] = useState<number | null>(null)
   const [score, setScore] = useState({ correct: 0, asked: 0 })
+  const [streak, setStreak] = useState(0)
+  const [best, setBest] = useState(() => getBestStreak('shape'))
+  const [isNewBest, setIsNewBest] = useState(false)
 
   const nextTarget = () => {
     if (poolRef.current.length === 0) {
@@ -33,7 +37,20 @@ export default function ShapeMode() {
   const handlePick = (code: number) => {
     if (picked !== null || target === null) return
     setPicked(code)
-    setScore((s) => ({ correct: s.correct + (code === target ? 1 : 0), asked: s.asked + 1 }))
+    const correct = code === target
+    setScore((s) => ({ correct: s.correct + (correct ? 1 : 0), asked: s.asked + 1 }))
+    if (correct) {
+      recordCorrect(target)
+      const newStreak = streak + 1
+      setStreak(newStreak)
+      if (reportStreak('shape', newStreak)) {
+        setBest(newStreak)
+        setIsNewBest(true)
+      }
+    } else {
+      setStreak(0)
+      setIsNewBest(false)
+    }
     window.setTimeout(nextTarget, 900)
   }
 
@@ -50,6 +67,9 @@ export default function ShapeMode() {
         <p className="quiz-question">この形の都道府県は？</p>
         <p className="quiz-score">
           {score.correct} / {score.asked} 問正解
+        </p>
+        <p className={isNewBest ? 'quiz-best is-new-best' : 'quiz-best'}>
+          連続正解 {streak}（自己ベスト <strong>{best}</strong>）
         </p>
       </div>
 
