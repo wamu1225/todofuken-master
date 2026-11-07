@@ -3,6 +3,7 @@
 // 実行: npx tsx scripts/prerender.ts（npm run predeploy 内）
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'child_process';
 import { PREFECTURES } from '../src/data/prefectures';
 import { ABOUT_CONTENT, PRIVACY_CONTENT, SITE_NAME } from '../src/data/static-pages';
 
@@ -114,7 +115,8 @@ for (const [slug, title, desc, content] of [
 console.log('✓ /about/ /privacy/');
 
 // ── sitemap.xml ──
-const today = new Date().toISOString().split('T')[0];
+// lastmod は最後にソースが変わった日（2026-11-07 監督）。ビルドした日にすると毎回すべてが「今日」になり、変わったかどうかが伝わらない
+const today = (() => { try { return execSync('git log -1 --format=%cs -- src scripts/prerender.ts', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() || new Date().toISOString().split('T')[0]; } catch { return new Date().toISOString().split('T')[0]; } })();
 const urls = [
   { loc: `${BASE_URL}/`, priority: '1.0' },
   { loc: `${BASE_URL}/about/`, priority: '0.3' },
